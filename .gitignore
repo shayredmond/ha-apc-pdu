@@ -52,4 +52,5 @@ $RECYCLE.BIN/
 *.lnk
 
 # Claude
-.claude/
+.claude/__pycache__/
+.pytest_cache/
