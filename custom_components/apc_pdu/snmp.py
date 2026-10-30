@@ -53,6 +53,14 @@ from .const import (
     OID_IDENT_NUM_OUTLETS,
     CMD_IMMEDIATE_ON,
     CMD_IMMEDIATE_OFF,
+    OID_DEVICE_POWER,
+    OID_DEVICE_ENERGY,
+    OID_DEVICE_APPARENT_POWER,
+    OID_DEVICE_POWER_FACTOR,
+    OID_OUTLET_METERED_CURRENT,
+    OID_OUTLET_METERED_POWER,
+    OID_OUTLET_METERED_ENERGY,
+    SNMP_GET_CHUNK,
 )
 
 AUTH_PROTOCOL_MAP = {
@@ -356,6 +364,84 @@ class APCPDUClient:
                 except (TypeError, ValueError):
                     pass  # unexpected non-integer type — leave state as None
         return amps, state
+
+    async def _get_integer_oids(self, oids: list[str]) -> list[int | None]:
+        """GET many integer OIDs, chunked; unsupported or failed values are None.
+
+        A failed chunk yields None for every OID in it rather than raising, so
+        metering stays best-effort and never breaks outlet polling.
+        """
+        results: list[int | None] = []
+        for start in range(0, len(oids), SNMP_GET_CHUNK):
+            chunk = oids[start:start + SNMP_GET_CHUNK]
+            async with self._lock:
+                errorIndication, errorStatus, errorIndex, varBinds = await get_cmd(
+                    self._engine, self._auth, await self._transport(), self._context,
+                    *(ObjectType(ObjectIdentity(oid)) for oid in chunk),
+                )
+            if errorIndication or errorStatus or len(varBinds) != len(chunk):
+                _LOGGER.debug(
+                    "Integer GET chunk failed (%s): %s",
+                    chunk[0], errorIndication or errorStatus,
+                )
+                results.extend([None] * len(chunk))
+                continue
+            for _, val in varBinds:
+                if isinstance(val, (NoSuchObject, NoSuchInstance, EndOfMibView)):
+                    results.append(None)
+                    continue
+                try:
+                    results.append(int(val))
+                except (TypeError, ValueError):
+                    results.append(None)
+        return results
+
+    async def get_device_power_metrics(self) -> dict[str, float | None]:
+        """Return PDU-level rPDU2 metering in SI units.
+
+        Keys: power (W), energy (kWh), apparent_power (VA), power_factor (0–1).
+        Values are None when the PDU does not support the OID.
+        """
+        _LOGGER.debug("GET device power metrics (bulk)")
+        power, energy, apparent, pf = await self._get_integer_oids([
+            OID_DEVICE_POWER,
+            OID_DEVICE_ENERGY,
+            OID_DEVICE_APPARENT_POWER,
+            OID_DEVICE_POWER_FACTOR,
+        ])
+        return {
+            "power": power * 10 if power is not None and power >= 0 else None,
+            "energy": round(energy / 10, 1) if energy is not None and energy >= 0 else None,
+            "apparent_power": apparent * 10 if apparent is not None and apparent >= 0 else None,
+            "power_factor": round(pf / 100, 2) if pf is not None and pf >= 0 else None,
+        }
+
+    async def get_outlet_metering(self, count: int) -> dict[int, dict[str, float | None]]:
+        """Return per-outlet current (A), power (W) and energy (kWh).
+
+        Outlets the PDU does not meter are omitted from the result entirely.
+        """
+        outlets = list(range(1, count + 1))
+        _LOGGER.debug("GET outlet metering (bulk, count=%s)", count)
+        oids: list[str] = []
+        for o in outlets:
+            oids += [
+                f"{OID_OUTLET_METERED_CURRENT}.{o}",
+                f"{OID_OUTLET_METERED_POWER}.{o}",
+                f"{OID_OUTLET_METERED_ENERGY}.{o}",
+            ]
+        values = await self._get_integer_oids(oids)
+        result: dict[int, dict[str, float | None]] = {}
+        for i, o in enumerate(outlets):
+            current, power, energy = values[i * 3:i * 3 + 3]
+            if current is None and power is None and energy is None:
+                continue
+            result[o] = {
+                "current": round(current / 10, 1) if current is not None and current >= 0 else None,
+                "power": power if power is not None and power >= 0 else None,
+                "energy": round(energy / 10, 1) if energy is not None and energy >= 0 else None,
+            }
+        return result
 
     # ------------------------------------------------------------------
     # Write

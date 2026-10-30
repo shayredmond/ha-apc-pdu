@@ -31,6 +31,30 @@ CMD_IMMEDIATE_OFF = 2
 OID_LOAD_AMPS  = "1.3.6.1.4.1.318.1.1.12.2.3.1.1.2.1"
 OID_LOAD_STATE = "1.3.6.1.4.1.318.1.1.12.2.3.1.1.3.1"
 
+# rPDU2 device-level metering (Metered / Metered-by-Outlet / Switched 2G PDUs,
+# e.g. AP86xx/AP88xx). Not present on the AP7920 — sensors are only created
+# when the PDU answers these OIDs. Instance suffix .1 = first PDU in the chain.
+# rPDU2DeviceStatusPower          — hundredths of kW  (27 -> 270 W)
+# rPDU2DeviceStatusEnergy         — tenths of kWh     (70525 -> 7052.5 kWh)
+# rPDU2DeviceStatusApparentPower  — hundredths of kVA (33 -> 330 VA)
+# rPDU2DeviceStatusPowerFactor    — hundredths        (80 -> 0.80)
+OID_DEVICE_POWER          = "1.3.6.1.4.1.318.1.1.26.4.3.1.5.1"
+OID_DEVICE_ENERGY         = "1.3.6.1.4.1.318.1.1.26.4.3.1.9.1"
+OID_DEVICE_APPARENT_POWER = "1.3.6.1.4.1.318.1.1.26.4.3.1.16.1"
+OID_DEVICE_POWER_FACTOR   = "1.3.6.1.4.1.318.1.1.26.4.3.1.17.1"
+
+# rPDU2OutletMeteredStatusTable — per-outlet metering (Metered-by-Outlet PDUs).
+# Append .{outlet} to each column.
+# .6  Current — tenths of Amps
+# .7  Power   — Watts
+# .11 Energy  — tenths of kWh
+OID_OUTLET_METERED_CURRENT = "1.3.6.1.4.1.318.1.1.26.9.4.3.1.6"
+OID_OUTLET_METERED_POWER   = "1.3.6.1.4.1.318.1.1.26.9.4.3.1.7"
+OID_OUTLET_METERED_ENERGY  = "1.3.6.1.4.1.318.1.1.26.9.4.3.1.11"
+
+# Max varbinds per GET — keeps responses under typical PDU agent size limits.
+SNMP_GET_CHUNK = 24
+
 # rPDU identity scalars (all use .0 instance suffix)
 OID_IDENT_NAME             = "1.3.6.1.4.1.318.1.1.12.1.1.0"
 OID_IDENT_MODEL            = "1.3.6.1.4.1.318.1.1.12.1.5.0"

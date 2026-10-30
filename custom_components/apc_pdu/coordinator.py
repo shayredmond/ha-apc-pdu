@@ -44,6 +44,9 @@ class APCPDUCoordinator(DataUpdateCoordinator[dict[int, bool]]):
         # None means the PDU did not return a value (unsupported or SNMP error).
         self.load_amps: float | None = None
         self.load_state: int | None = None
+        # rPDU2 metering — empty when the PDU model has no metering.
+        self.device_power: dict[str, float | None] = {}
+        self.outlet_metering: dict[int, dict[str, float | None]] = {}
 
     @property
     def device_info(self) -> DeviceInfo:
@@ -72,5 +75,17 @@ class APCPDUCoordinator(DataUpdateCoordinator[dict[int, bool]]):
             _LOGGER.debug("Could not read load metrics from PDU — will retry next poll")
             self.load_amps = None
             self.load_state = None
+
+        try:
+            self.device_power = await self.client.get_device_power_metrics()
+        except Exception:  # noqa: BLE001
+            _LOGGER.debug("Could not read device power metrics — will retry next poll")
+            self.device_power = {}
+
+        try:
+            self.outlet_metering = await self.client.get_outlet_metering(self.outlet_count)
+        except Exception:  # noqa: BLE001
+            _LOGGER.debug("Could not read outlet metering — will retry next poll")
+            self.outlet_metering = {}
 
         return outlet_states

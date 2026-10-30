@@ -161,6 +161,25 @@ Three diagnostic sensors per PDU (visible in the entity list, hidden from dashbo
 | Manufacture Date | Date of manufacture from the PDU (`rPDUIdentDateOfManufacture`) |
 | Number of Outlets | Outlet count reported by the PDU (`rPDUIdentDeviceNumOutlets`) |
 
+### Power & energy metering (rPDU2 models)
+
+On metered APC PDUs (e.g. AP86xx Metered-by-Outlet, AP88xx) the integration also
+creates power and energy sensors. They are only created when the PDU answers the
+rPDU2 metering OIDs, so switched-only models such as the AP7920 are unaffected.
+
+| Entity | Unit | Notes |
+|---|---|---|
+| Power | W | Whole-PDU real power (`rPDU2DeviceStatusPower`, 10 W resolution) |
+| Energy | kWh | Whole-PDU lifetime counter, `total_increasing` — use in the Energy dashboard |
+| Apparent Power | VA | Whole-PDU apparent power |
+| Power Factor | — | Diagnostic, disabled by default |
+| *Outlet* Power | W | Per outlet (`rPDU2OutletMeteredStatusPower`) |
+| *Outlet* Energy | kWh | Per-outlet lifetime counter, `total_increasing` |
+| *Outlet* Current | A | Per outlet, disabled by default |
+
+Per-outlet meters read in 0.1 A steps, so very small loads can show 0 W. The
+whole-PDU Power/Energy sensors include everything and are the ones to use for costing.
+
 ### Device panel
 
 The HA device panel for each PDU is automatically populated with:
